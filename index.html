@@ -142,7 +142,7 @@ window.BOOTH_CONFIG = {
   watermarkName: "DJ Cioko",
   watermarkTel: "Tel :0728469987",
   sttLang: "ro-RO",
-  imageApiUrl: ""
+  imageApiUrl: "https://cabina-ai.djcioko.workers.dev"
 };
 
 window.PRESETS={
@@ -403,12 +403,38 @@ AMUZANT:[
     stamp(frame.getContext("2d"), 1024, 1024);
     paintResult(frame);
   }
-  function transform() {
+  async function transform() {
     const extra = [$("loc").value, $("obj").value].filter(Boolean).join(", ");
     const base = $("prompt").value || "photorealistic portrait, preserve the exact face";
     $("prompt").value = extra ? base + ", " + extra : base;
-    $("scene").textContent = $("prompt").value.slice(0, 80);
-    paintResult(grab());
+    $("scene").textContent = "Se generează…";
+    const frame = grab();
+    const image = frame.toDataURL("image/jpeg", 0.85);
+    try {
+      const r = await fetch(cfg.imageApiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: $("prompt").value, image })
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || JSON.stringify(data));
+      const src = data.url || (data.b64 ? ("data:image/jpeg;base64," + data.b64) : (data.data && data.data[0] && (data.data[0].url || (data.data[0].b64_json && "data:image/jpeg;base64," + data.data[0].b64_json))));
+      if (!src) throw new Error("xAI nu a trimis imagine");
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        [out, liveOut].forEach((cv) => {
+          const g = cv.getContext("2d");
+          g.drawImage(img, 0, 0, cv.width, cv.height);
+          stamp(g, cv.width, cv.height);
+        });
+        $("scene").textContent = "Gata";
+      };
+      img.src = src;
+    } catch (e) {
+      $("scene").textContent = "Eroare: " + e.message;
+      paintResult(frame);
+    }
   }
   function download() {
     const a = document.createElement("a");
