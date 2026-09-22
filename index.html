@@ -106,7 +106,7 @@ footer{padding:10px 16px;color:var(--mut);font-size:12px;border-top:1px solid va
           <button type="button" id="btnPrint">Print</button>
           <button type="button" id="btnQr">QR</button>
         </div>
-        <p class="note">Totul e într-un singur fișier. Transformarea locală = poză + scenă + watermark. AI-ul real necesită un API.</p>
+        <p class="note" id="aiStatus">Apasă Transformă. Statusul AI apare aici.</p>
       </article>
     </section>
   </main>
@@ -408,6 +408,8 @@ AMUZANT:[
     const base = $("prompt").value || "photorealistic portrait, preserve the exact face";
     $("prompt").value = extra ? base + ", " + extra : base;
     $("scene").textContent = "Se generează…";
+    const st = $("aiStatus");
+    if (st) st.textContent = "Se generează cu Ideogram…";
     const frame = grab();
     const image = frame.toDataURL("image/jpeg", 0.85);
     try {
@@ -417,9 +419,9 @@ AMUZANT:[
         body: JSON.stringify({ prompt: $("prompt").value, image })
       });
       const data = await r.json();
-      if (!r.ok) throw new Error(data.error || JSON.stringify(data));
+      if (!r.ok || data.error) throw new Error(data.error || JSON.stringify(data.raw || data));
       const src = data.url || (data.b64 ? ("data:image/jpeg;base64," + data.b64) : (data.data && data.data[0] && (data.data[0].url || (data.data[0].b64_json && "data:image/jpeg;base64," + data.data[0].b64_json))));
-      if (!src) throw new Error("xAI nu a trimis imagine");
+      if (!src) throw new Error("Ideogram nu a trimis imagine. Verifică creditele API.");
       const img = new Image();
       img.crossOrigin = "anonymous";
       img.onload = () => {
@@ -429,10 +431,19 @@ AMUZANT:[
           stamp(g, cv.width, cv.height);
         });
         $("scene").textContent = "Gata";
+        if (st) st.textContent = "Gata — Ideogram.";
+      };
+      img.onerror = () => {
+        const msg = "Imaginea AI nu s-a putut afișa (URL blocat).";
+        $("scene").textContent = msg;
+        if (st) st.textContent = msg;
       };
       img.src = src;
     } catch (e) {
-      $("scene").textContent = "Eroare: " + e.message;
+      const msg = "Eroare AI: " + e.message;
+      $("scene").textContent = msg;
+      if (st) st.textContent = msg;
+      alert(msg);
       paintResult(frame);
     }
   }
