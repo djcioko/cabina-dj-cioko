@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>AI Photo Booth — DJ Cioko</title>
+<style>
+:root{--bg:#07090f;--card:#121628;--line:#2a3150;--txt:#e8eaf4;--mut:#8b92b0;--acc:#7c5cff;--gold:#e0b84a;--red:#c62828}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--txt)}
+.top{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid var(--line)}
+.brand{display:flex;gap:12px;align-items:center}.logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#6a4cff,#3b2a8a);display:grid;place-items:center;font-weight:800}
+.muted{color:var(--mut);font-size:12px}.top-actions,.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button,input,textarea{background:#1b2140;color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font:inherit}
+button{cursor:pointer}button.pri{background:var(--acc);border:0;font-weight:700}
+.pill{border-radius:999px;padding:4px 10px;font-size:11px;background:#12351f;color:#6fdf8a}
+.layout{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:16px}
+h2{margin:0 0 10px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#b9c0e0}
+.stage{background:#05070c;border-radius:12px;min-height:280px;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+.stage.tall{min-height:52vh}video,img,canvas{max-width:100%;max-height:360px;display:block}
+.live-view .stage video,.live-view .stage img,.live-view .stage canvas{max-height:52vh;width:100%;object-fit:contain}
+.empty{color:var(--mut);padding:24px;text-align:center}
+.tabs{display:flex;gap:6px;margin:10px 0}.tabs button.on,.t.on{outline:2px solid var(--acc)}
+label{display:block;margin:10px 0 4px;font-size:12px;color:var(--mut)}
+textarea,input[type=text],#camLink,#search,#loc,#obj,#prompt{width:100%}
+.chips{display:flex;flex-wrap:wrap;gap:6px;max-height:220px;overflow:auto;margin:8px 0}
+.chips span{background:#1b2140;border:1px solid var(--line);border-radius:999px;padding:6px 10px;cursor:pointer;font-size:12px}
+.chips span.on{outline:2px solid var(--acc)}
+.note{font-size:12px;color:var(--mut)}
+.hidden{display:none!important}
+.live-view{min-height:calc(100vh - 72px);display:flex;flex-direction:column}
+.live-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px;flex:1}
+.tag{position:absolute;top:10px;left:10px;font-size:11px;color:var(--mut)}
+.live-bar{display:flex;gap:10px;align-items:center;padding:12px 16px;border-top:1px solid var(--line);background:#0c1020}
+.mic{width:58px;height:58px;border-radius:50%;font-size:22px}.mic.rec{background:var(--red)}
+.scene{flex:1}.scene #scene{font-size:18px}
+footer{padding:10px 16px;color:var(--mut);font-size:12px;border-top:1px solid var(--line)}
+@media(max-width:900px){.layout,.live-grid{grid-template-columns:1fr}}
+
+</style>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <div class="logo">DC</div>
+      <div>
+        <strong>AI PHOTO BOOTH</strong>
+        <div class="muted">Consolă operator · DJ Cioko · 100 presetări</div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span class="pill live">LIVE</span>
+      <button type="button" id="btnGoLive">Ecran Live</button>
+      <button type="button" id="btnReset">Resetează</button>
+    </div>
+  </header>
+  <main id="viewConsole" class="layout">
+    <section class="col">
+      <article class="card">
+        <h2>Fotografia de referință</h2>
+        <div class="stage" id="refStage">
+          <video id="cam" autoplay playsinline muted></video>
+          <img id="refImg" alt="referință" hidden />
+          <div id="refEmpty" class="empty">Alege o sursă: cameră, poză, link sau ecran.</div>
+        </div>
+        <div class="tabs" id="srcTabs">
+          <button type="button" data-src="webcam" class="on">Cameră</button>
+          <button type="button" data-src="upload">Încarcă</button>
+          <button type="button" data-src="link">Link cameră</button>
+          <button type="button" data-src="share">Screen share</button>
+        </div>
+        <div class="row">
+          <input id="file" type="file" accept="image/*" hidden />
+          <input id="camLink" placeholder="VDO.Ninja ?view=… sau http://IP:4747/video" />
+          <button type="button" id="btnConnect">Conectează</button>
+        </div>
+        <div class="row">
+          <span class="muted">Timer</span>
+          <button type="button" class="t on" data-t="3">3s</button>
+          <button type="button" class="t" data-t="5">5s</button>
+          <button type="button" class="t" data-t="10">10s</button>
+          <button type="button" class="pri" id="btnSnap">Fă poza</button>
+          <strong id="count"></strong>
+        </div>
+      </article>
+      <article class="card">
+        <h2>Stiluri AI</h2>
+        <div class="row" id="cats"></div>
+        <input id="search" placeholder="Caută presetare…" />
+        <div class="chips" id="chips"></div>
+        <label>Locație / fundal</label>
+        <input id="loc" placeholder="stadion, nocturnă…" />
+        <label>Obiect în mână</label>
+        <input id="obj" placeholder="trofeu, microfon…" />
+        <label>Master Prompt (suprascrie presetarea)</label>
+        <textarea id="prompt" rows="5"></textarea>
+      </article>
+    </section>
+    <section class="col">
+      <article class="card">
+        <h2>Rezultat</h2>
+        <div class="stage"><canvas id="out" width="1024" height="1024"></canvas></div>
+        <div class="row">
+          <button type="button" class="pri" id="btnAi">Transformă cu AI</button>
+          <button type="button" id="btnDl">Download</button>
+          <button type="button" id="btnPrint">Print</button>
+          <button type="button" id="btnQr">QR</button>
+        </div>
+        <p class="note">Totul e într-un singur fișier. Transformarea locală = poză + scenă + watermark. AI-ul real necesită un API.</p>
+      </article>
+    </section>
+  </main>
+  <section id="viewLive" class="live-view hidden">
+    <div class="live-grid">
+      <div class="stage tall">
+        <video id="liveCam" autoplay playsinline muted></video>
+        <img id="liveRef" hidden alt="" />
+        <div class="tag">Preview</div>
+      </div>
+      <div class="stage tall">
+        <canvas id="liveOut" width="1024" height="1024"></canvas>
+        <div class="tag">Rezultat</div>
+      </div>
+    </div>
+    <div class="live-bar">
+      <button type="button" class="mic" id="mic">🎤</button>
+      <div class="scene">
+        <div class="muted" id="stt">Idle — apasă microfonul</div>
+        <div id="scene">Scena ta apare aici</div>
+      </div>
+      <button type="button" id="liveSnap">Fă poza</button>
+      <button type="button" class="pri" id="liveAi">Transformă</button>
+      <button type="button" id="livePrint">Print</button>
+      <button type="button" id="btnConsole">Consolă</button>
+    </div>
+  </section>
+  <footer>DJ Cioko · Tel :0728469987 · watermark jos dreapta</footer>
+<script>
+/* Endpoint opțional pentru imagine AI reală (Emergent / Groq vision / alt API).
+   Lasă gol ca să folosească motorul canvas local. */
+window.BOOTH_CONFIG = {
+  watermarkName: "DJ Cioko",
+  watermarkTel: "Tel :0728469987",
+  sttLang: "ro-RO",
+  imageApiUrl: ""
+};
+
+window.PRESETS={
+BĂRBAȚI:[
+["Dacian Warrior","Cinematic 4K, preserve the exact face and features, dressed in ancient Dacian warrior leather armor, wolf fur cape, misty Carpathian mountains background, hyper-realistic textures."],
+["Elegant Tuxedo","Luxury fashion photography, keep the person's face identical, wearing a bespoke midnight blue velvet tuxedo, silk lapels, high-end gala ballroom background, bokeh lights, 8k."],
+["Traditional Folk","Authentic portrait, maintain facial identity, wearing a traditional Romanian suman with black embroidery, rustic wooden porch background, natural soft lighting."],
+["Modern CEO","Professional corporate shot, preserve the face exactly, wearing a premium tailored charcoal grey suit, luxury glass office background, cinematic lighting, ultra-sharp focus."],
+["Urban Leather","Street style, keep the original face, wearing a vintage black leather jacket, urban graffiti alley at night, neon reflections, realistic skin texture."],
+["Astronaut Explorer","Sci-fi realism, preserve the exact face, wearing a detailed NASA-style space suit, interior of a high-tech spaceship, dramatic cinematic lighting, 4K."],
+["Peaky Blinders Style","1920s vintage photo, keep the person's face identical, wearing a wool three-piece suit and flat cap, misty Birmingham street background, sepia tones, hyper-realistic."],
+["Cyberpunk Nomad","Future tech, preserve facial features, wearing a neon-lined tactical jacket, futuristic Tokyo street background, rain and neon lights, highly detailed."],
+["Medieval Knight","Epic fantasy, maintain the exact face, wearing polished silver plate armor, red velvet cape, castle courtyard background, realistic metal reflections."],
+["Luxury Yacht Captain","Lifestyle shot, keep the face identical, wearing a white linen shirt and captain's hat, Mediterranean sea background, bright summer sun, 8k resolution."],
+["Viking Chieftain","Gritty portrait, preserve the original face, wearing fur layers and iron chainmail, snowy Nordic forest background, cinematic cold atmosphere."],
+["Formula 1 Driver","Action portrait, keep the face identical, wearing a professional racing suit with sponsors, pit lane background, sharp focus, vibrant colors."],
+["Jungle Explorer","Adventure style, maintain facial identity, wearing a khaki safari outfit, tropical rainforest background, dappled sunlight, ultra-realistic."],
+["Secret Agent","Action movie still, preserve the exact face, wearing a sharp black suit and tie, luxury casino background, cinematic shadows, high tension."],
+["Desert Bedouin","Cultural portrait, keep the original face, wearing traditional white robes and headscarf, Sahara desert dunes at sunset, golden hour lighting."],
+["Steampunk Inventor","Creative portrait, maintain facial identity, wearing a leather vest, brass goggles on forehead, workshop filled with gears, warm amber lighting."],
+["Olympic Athlete","Sport photography, preserve the face exactly, wearing a professional athletic jersey, stadium track background, sweat and skin texture visible, 4K."],
+["Jazz Musician","Moody portrait, keep the person's face identical, wearing a fedora hat and waistcoat, smoky jazz club background, saxophone in hand, cinematic grain."],
+["Winter King","Epic shot, preserve facial features, wearing a heavy fur-lined royal coat, ice throne background, blizzard particles, hyper-realistic."],
+["Tech Billionaire","Casual luxury, maintain the exact face, wearing a premium black turtleneck, minimalist Silicon Valley home background, soft daylight, 8k."]
+],
+FEMEI:[
+["Traditional Beauty","Detailed portrait, preserve the exact face, wearing a handmade Romanian ia with gold threads and red embroidery, flower crown, sunflower field background, 4K cinematic."],
+["Gala Red Carpet","High-fashion, keep the original facial features, wearing a spectacular emerald green silk gown, luxury red carpet event background, flashing lights, 8k."],
+["Fantasy Forest Queen","Fine art, preserve the face exactly, wearing a dress made of glowing white silk and petals, enchanted forest background, ethereal lighting."],
+["Business Power Suit","Sharp professional photo, maintain facial identity, wearing a stylish white tailored power suit, modern minimalist skyscraper interior, soft light."],
+["Boho Beach Goddess","Candid shot, keep the original face, wearing a white lace bohemian dress, Maldives beach at sunset, realistic skin and wind-blown hair."],
+["Versailles Princess","Historical luxury, preserve the face exactly, wearing a gold-embroidered 18th-century ball gown, Palace of Versailles hall background, cinematic."],
+["Cyberpunk Rebel","Futuristic, keep the face identical, wearing a reflective chrome jacket, neon city background, wet surfaces, pink and blue lighting."],
+["Ancient Egyptian Queen","Regal portrait, maintain facial identity, wearing a gold beaded gown and Nefertiti-style jewelry, temple interior background, warm lighting."],
+["Winter Elegance","High-end portrait, preserve the face, wearing a white faux fur coat and diamond jewelry, snowy mountain resort background, soft bokeh."],
+["1950s Hollywood Star","Vintage glamour, keep the face identical, wearing a classic red dress and pearls, vintage car background, cinematic lighting."],
+["Amazon Warrior","Strong portrait, maintain facial identity, wearing leather and bronze armor, tropical jungle background, dramatic shadows, realistic skin."],
+["Tennis Champion","Athletic shot, preserve the face exactly, wearing a white tennis outfit, green clay court background, bright daylight, 8k."],
+["Parisian Artist","Lifestyle shot, keep the original face, wearing a black beret and trench coat, Eiffel Tower background, soft morning mist."],
+["Undersea Mermaid","Fantasy, maintain facial identity, wearing a dress made of scales and pearls, underwater coral reef background, caustic light effects."],
+["Desert Queen","Golden hour, preserve the face, wearing a flowing silk dress, sand dunes background, dramatic wind movement, ultra-realistic."],
+["Sci-Fi Pilot","Futuristic, keep the face identical, wearing a sleek silver flight suit, cockpit of a starship, holographic displays."],
+["Gothic Victorian","Dark elegance, maintain facial identity, wearing a black lace gown, old mansion library background, candlelight, moody atmosphere."],
+["Flower Fairy","Macro photography style, preserve the face, wearing a dress made of real lilies, giant garden background, magical bokeh."],
+["Street Style Icon","Urban shot, keep the original face, wearing a designer oversized hoodie and sneakers, New York Times Square background, 4K."],
+["Renaissance Muse","Oil painting style realism, maintain facial identity, wearing a velvet dress with pearls, soft chiaroscuro lighting, classic background."]
+],
+GRUP:[
+["Folk Celebration","Group photo, preserve all faces identical to the reference, everyone wearing traditional Romanian costumes, rustic village festival background, warm lighting."],
+["Royal Family","Epic portrait, keep the original faces of everyone, dressed in medieval royal attire with velvet and gold, castle throne room background, cinematic."],
+["Modern Elegant Party","Commercial style, maintain all facial identities, wearing black-tie elegant outfits, luxury lounge background, champagne glasses, bright 8k."],
+["Christmas Morning","Cozy family shot, preserve all faces, wearing matching red knitted sweaters, decorated Christmas tree background, warm fireplace glow."],
+["Superhero Team","Action shot, maintain all facial identities, wearing custom cinematic superhero suits, urban rooftop background, dramatic clouds."],
+["Victorian Family","Vintage portrait, keep all faces identical, wearing 19th-century formal clothing, classic studio background, sepia tones, hyper-realistic."],
+["Space Crew","Sci-fi group shot, preserve all faces, wearing uniform astronaut jumpsuits, futuristic space station hub background, high-tech lighting."],
+["Beach Vacation","Happy candid, maintain all facial identities, wearing colorful summer clothes, tropical beach background, bright sun, ultra-realistic."],
+["Mountain Hikers","Adventure shot, preserve all faces, wearing professional hiking gear, top of the mountain background, blue sky, 4K."],
+["Mafia Family","1940s style, keep all faces identical, wearing pinstripe suits and vintage dresses, dim-lit Italian restaurant background, cinematic shadows."],
+["Wedding Party","Formal shot, maintain all facial identities, wearing bridesmaids and groomsmen attire, garden wedding background, soft floral bokeh."],
+["Safari Tour","Adventure, preserve all faces, wearing explorer outfits, African savanna background with giraffes, golden sunset."],
+["Hogwarts Students","Fantasy, maintain all facial identities, wearing magic school robes and scarves, ancient castle hallway background, magical torches."],
+["80s Disco Group","Fun retro, preserve all faces, wearing neon tracksuits and glittery outfits, disco club background with lights."],
+["Roman Senate","Historical, keep all faces identical, wearing white and purple togas, ancient Roman forum background, cinematic marble textures."],
+["Pilot Crew","Professional, maintain all facial identities, wearing airline pilot uniforms, airport runway background, sunset."],
+["Farm Life","Rustic, preserve all faces, wearing denim overalls and plaid shirts, red barn background, hay bales, natural light."],
+["Winter Cabin","Cozy group, maintain all facial identities, wearing heavy winter coats and beanies, snowy log cabin background."],
+["Pirates of the Caribbean","Theme shot, preserve all faces, wearing detailed pirate outfits, wooden ship deck background, misty sea."],
+["Futuristic Citizens","Cyberpunk group, maintain all facial identities, wearing sleek metallic clothing, neon city balcony background."]
+],
+SĂRBĂTORI:[
+["Birthday King/Queen","Portrait, preserve the exact face, wearing a gold crown and Birthday King/Queen sash, explosion of gold confetti background, luxury decor."],
+["Cake Smash Fun","Cinematic 4K, keep the face identical, wearing a party hat, holding a giant chocolate cake, colorful balloons background, joyful expression."],
+["Hollywood Star Birthday","Red carpet style, preserve the face, wearing a glamorous gown/suit, Happy Birthday neon sign background, paparazzi lights."],
+["Champagne Toast","Elegant shot, maintain facial identity, wearing a cocktail dress/suit, holding a glass of champagne, luxury bar background, bokeh."],
+["Surprise Party","Action candid, keep the face identical, shocked happy expression, friends throwing confetti in background (blurred), bright festive colors."],
+["Princess Birthday","Fantasy, preserve the face, wearing a pink tulle ball gown, castle cake in front, magical fairy lights background."],
+["Yacht Birthday","Luxury lifestyle, keep the face identical, wearing white summer clothes, Happy Birthday balloons on a yacht deck, ocean background."],
+["Superhero Birthday","Theme shot, maintain facial identity, wearing a superhero cape over a formal suit, comic book style background, Level Up sign."],
+["Golden Year","8k portrait, preserve the face, wearing an all-gold outfit, giant gold balloons background, glittering atmosphere."],
+["Candy Land","Fun shot, keep the face identical, wearing bright colorful clothes, giant lollipops and sweets background, pastel colors."],
+["Rockstar Birthday","Moody shot, preserve the face, wearing a leather jacket, holding a guitar, stage background with Happy Birthday on screens."],
+["Vintage 1920s Party","Great Gatsby style, maintain facial identity, wearing fringe dress/tuxedo, champagne tower background, art deco style."],
+["Jungle Birthday","Theme shot, preserve the face, wearing an explorer hat, tropical leaves and balloon animals background."],
+["Neon Glow Party","Futuristic, keep the face identical, wearing white clothes with neon paint, UV blacklight background, glowing balloons."],
+["Floral Garden Party","Soft portrait, maintain facial identity, wearing a floral dress/linen shirt, elegant garden tea party background."],
+["Space Birthday","Sci-fi fun, preserve the face, wearing a silver suit, Out of this World birthday banner, planet and star decorations."],
+["CEO Birthday","Professional luxury, maintain facial identity, wearing a suit, sitting in a leather chair with a glass of whiskey, luxury office decor."],
+["Circus Ringmaster","Dramatic, preserve the face, wearing a red ringmaster jacket and top hat, circus tent background, festive lights."],
+["Winter Wonderland Birthday","Preserve the face, wearing a cozy white sweater, silver and blue balloon decor, fake snow background."],
+["Balloon Heaven","Close-up, maintain facial identity, face surrounded by hundreds of colorful translucent balloons, soft cinematic lighting."]
+],
+AMUZANT:[
+["Baby Body","Preserve the adult face exactly, but place it on a tiny baby body wearing a diaper and holding a giant rattle, nursery background."],
+["Muscle Builder","Keep the original face, place it on an ultra-muscular bodybuilder body covered in oil, posing on a stage, funny contrast."],
+["The Mona Lisa","Maintain facial identity, replace Mona Lisa's face with the person's face, museum frame background, oil painting texture."],
+["Space Monkey","Preserve the face, wearing an astronaut suit, but holding a banana and floating in zero gravity with other monkeys."],
+["Sumo Wrestler","Keep the face identical, place it on a massive sumo wrestler body in a ring, ready for combat, cinematic but hilarious."],
+["Victorian Dog Portrait","Maintain facial identity, but the body is a sophisticated French Bulldog wearing a suit and monocle."],
+["Crying over Onions","Keep the face identical, wearing a chef hat, exaggerated crying expression, giant mountain of onions in front, kitchen background."],
+["Medieval Peasant in Stocks","Preserve the face, person is stuck in wooden medieval stocks, messy hair, medieval village background."],
+["Superhero Fail","Maintain facial identity, wearing a superhero costume that is 3 sizes too small, trying to fly but stuck in a tree."],
+["Napoleon on a Donkey","Keep the face identical, wearing Napoleon's uniform, but riding a very small, grumpy donkey instead of a horse."],
+["Disco Chicken","Preserve the face, wearing a giant yellow chicken suit with a disco ball necklace, 70s dance floor background."],
+["Alien Abduction","Maintain facial identity, person being lifted by a green tractor beam into a UFO, funny scared expression."],
+["Bodyguard for a Cat","Keep the face identical, wearing a black suit and earpiece, holding an umbrella for a very grumpy cat on a throne."],
+["Renaissance Angel","Preserve the face, place it on a chubby cherub/angel body with tiny wings, floating in the clouds."],
+["Mad Scientist","Maintain facial identity, crazy static hair, wearing a lab coat, holding a glowing green potion that just exploded."],
+["Statue of Liberty","Keep the face identical, body of the Statue of Liberty, holding a slice of pizza instead of a torch."],
+["Roman Gladiator vs. Cat","Preserve the face, wearing gladiator armor, but fighting a giant fluffy kitten in the Colosseum."],
+["Hippie Time Traveler","Maintain facial identity, wearing extreme 60s bell bottoms and flower power gear in the middle of a serious Viking camp."],
+["Royal Toddler","Keep the face identical, wearing a royal cape and crown, but sitting in a high chair eating spaghetti."],
+["Scuba Diver in Bathtub","Preserve the face, wearing full scuba gear (fins, mask, tank) but sitting in a small bathtub with a rubber ducky."]
+]
+};
+
+(function () {
+  const cfg = window.BOOTH_CONFIG || { watermarkName: "DJ Cioko", watermarkTel: "Tel :0728469987", sttLang: "ro-RO" };
+  const PRESETS = window.PRESETS;
+  let timer = 3, stream = null, cat = "BĂRBAȚI", source = "webcam";
+
+  const $ = (id) => document.getElementById(id);
+  const cam = $("cam"), refImg = $("refImg"), refEmpty = $("refEmpty");
+  const out = $("out"), liveOut = $("liveOut");
+
+  function showRefVideo() {
+    cam.hidden = false; refImg.hidden = true; refEmpty.hidden = true;
+  }
+  function showRefImg() {
+    cam.hidden = true; refImg.hidden = false; refEmpty.hidden = true;
+  }
+  function stopStream() {
+    if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
+  }
+
+  async function srcWebcam() {
+    stopStream();
+    stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    cam.srcObject = stream;
+    $("liveCam").srcObject = stream;
+    showRefVideo();
+  }
+  async function srcShare() {
+    stopStream();
+    stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    cam.srcObject = stream;
+    $("liveCam").srcObject = stream;
+    showRefVideo();
+  }
+  function srcLink() {
+    const url = $("camLink").value.trim();
+    if (!url) return alert("Lipește un link de cameră.");
+    stopStream();
+    showRefImg();
+    refImg.src = url;
+    $("liveRef").hidden = false;
+    $("liveRef").src = url;
+    $("liveCam").hidden = true;
+  }
+
+  document.getElementById("srcTabs").onclick = (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    [...e.currentTarget.children].forEach((x) => x.classList.remove("on"));
+    b.classList.add("on");
+    source = b.dataset.src;
+    if (source === "webcam") srcWebcam().catch((err) => alert(err.message));
+    if (source === "upload") $("file").click();
+    if (source === "share") srcShare().catch((err) => alert(err.message));
+  };
+  $("btnConnect").onclick = srcLink;
+  $("file").onchange = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    stopStream();
+    showRefImg();
+    refImg.src = URL.createObjectURL(f);
+  };
+
+  document.querySelectorAll(".t").forEach((b) => {
+    b.onclick = () => {
+      document.querySelectorAll(".t").forEach((x) => x.classList.remove("on"));
+      b.classList.add("on");
+      timer = Number(b.dataset.t);
+    };
+  });
+
+  function renderCats() {
+    const box = $("cats"); box.innerHTML = "";
+    Object.keys(PRESETS).forEach((name, i) => {
+      const b = document.createElement("button");
+      b.textContent = name;
+      if (i === 0) b.classList.add("on");
+      b.onclick = () => {
+        cat = name;
+        [...box.children].forEach((x) => x.classList.remove("on"));
+        b.classList.add("on");
+        renderChips();
+      };
+      box.appendChild(b);
+    });
+  }
+  function renderChips() {
+    const q = ($("search").value || "").toLowerCase();
+    const box = $("chips"); box.innerHTML = "";
+    PRESETS[cat].forEach(([n, p], i) => {
+      if (q && !n.toLowerCase().includes(q) && !p.toLowerCase().includes(q)) return;
+      const s = document.createElement("span");
+      s.textContent = i + 1 + ". " + n;
+      s.onclick = () => {
+        [...box.children].forEach((x) => x.classList.remove("on"));
+        s.classList.add("on");
+        $("prompt").value = p;
+        $("scene").textContent = n;
+      };
+      box.appendChild(s);
+    });
+    if (PRESETS[cat][0]) $("prompt").value = PRESETS[cat][0][1];
+  }
+  $("search").oninput = renderChips;
+
+  function grab() {
+    const c = document.createElement("canvas");
+    c.width = 1024; c.height = 1024;
+    const g = c.getContext("2d");
+    const el = !refImg.hidden && refImg.naturalWidth ? refImg : cam;
+    try { g.drawImage(el, 0, 0, 1024, 1024); }
+    catch (e) { alert("Nu pot citi frame-ul. Linkul e blocat de CORS — folosește Screen share."); }
+    return c;
+  }
+  function stamp(g, w, h) {
+    g.save();
+    g.font = "bold 26px Inter, sans-serif";
+    g.fillStyle = "#e0b84a";
+    g.shadowColor = "#000";
+    g.shadowBlur = 8;
+    g.textAlign = "right";
+    g.fillText(cfg.watermarkName, w - 28, h - 52);
+    g.fillText(cfg.watermarkTel, w - 28, h - 22);
+    g.restore();
+  }
+  function paintResult(src) {
+    [out, liveOut].forEach((cv) => {
+      const g = cv.getContext("2d");
+      g.drawImage(src, 0, 0, cv.width, cv.height);
+      const p = (($("prompt").value || "") + " " + ($("loc").value || "")).toLowerCase();
+      if (/fotbal|france|mbapp/.test(p)) g.fillStyle = "rgba(0,40,120,.25)";
+      else if (/cyber|neon|night/.test(p)) g.fillStyle = "rgba(40,0,80,.28)";
+      else if (/funny|baby|sumo|disco/.test(p)) g.fillStyle = "rgba(80,40,0,.2)";
+      else g.fillStyle = "rgba(20,16,8,.18)";
+      g.fillRect(0, 0, cv.width, cv.height);
+      stamp(g, cv.width, cv.height);
+    });
+  }
+  async function snap() {
+    for (let i = timer; i > 0; i--) { $("count").textContent = i; await new Promise((r) => setTimeout(r, 1000)); }
+    $("count").textContent = "";
+    const frame = grab();
+    showRefImg();
+    refImg.src = frame.toDataURL("image/jpeg", 0.92);
+    stamp(frame.getContext("2d"), 1024, 1024);
+    paintResult(frame);
+  }
+  function transform() {
+    const extra = [$("loc").value, $("obj").value].filter(Boolean).join(", ");
+    const base = $("prompt").value || "photorealistic portrait, preserve the exact face";
+    $("prompt").value = extra ? base + ", " + extra : base;
+    $("scene").textContent = $("prompt").value.slice(0, 80);
+    paintResult(grab());
+  }
+  function download() {
+    const a = document.createElement("a");
+    a.href = out.toDataURL("image/jpeg", 0.92);
+    a.download = "dj-cioko-booth.jpg";
+    a.click();
+  }
+  function printOut() {
+    const w = window.open("");
+    w.document.write('<img style="width:100%" src="' + out.toDataURL("image/jpeg", 0.92) + '">');
+    w.print();
+  }
+
+  $("btnSnap").onclick = snap;
+  $("liveSnap").onclick = snap;
+  $("btnAi").onclick = transform;
+  $("liveAi").onclick = transform;
+  $("btnDl").onclick = download;
+  $("btnPrint").onclick = printOut;
+  $("livePrint").onclick = printOut;
+  $("btnQr").onclick = () => alert("QR: folosește fișierul descărcat sau leagă un short-link la eveniment.");
+  $("btnGoLive").onclick = () => { $("viewConsole").classList.add("hidden"); $("viewLive").classList.remove("hidden"); };
+  $("btnConsole").onclick = () => { $("viewLive").classList.add("hidden"); $("viewConsole").classList.remove("hidden"); };
+  $("btnReset").onclick = () => location.reload();
+
+  function toggleMic() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { alert("Folosește Chrome pentru voce, sau STT din WebSim/Groq."); return; }
+    const r = new SR();
+    r.lang = cfg.sttLang;
+    r.onstart = () => { $("mic").classList.add("rec"); $("stt").textContent = "Ascult…"; };
+    r.onend = () => { $("mic").classList.remove("rec"); $("stt").textContent = "Idle"; };
+    r.onresult = (e) => {
+      const t = e.results[0][0].transcript;
+      const low = t.toLowerCase();
+      $("stt").textContent = t;
+      if (/fă poza|fa poza|captur|shoot/.test(low)) return snap();
+      if (/transform|genereaz|fă-o|fa-o/.test(low)) return transform();
+      if (/print/.test(low)) return printOut();
+      if (/anuleaz|stop/.test(low)) return;
+      $("prompt").value = t;
+      $("scene").textContent = t;
+      if (/fotbal|mbapp|fran[tț]a/.test(low)) $("loc").value = "stadion, nocturnă, echipa Franței";
+    };
+    r.start();
+  }
+  $("mic").onclick = toggleMic;
+
+  renderCats();
+  renderChips();
+  srcWebcam().catch(() => { refEmpty.hidden = false; cam.hidden = true; });
+})();
+
+</script>
+</body>
+</html>
